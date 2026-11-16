@@ -1,0 +1,240 @@
+\documentclass[11pt,letterpaper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[margin=1.05in]{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{hyperref}
+
+\definecolor{accent}{HTML}{174D61}
+\definecolor{codebackground}{HTML}{F2F5F6}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=accent,
+  urlcolor=accent,
+  pdftitle={Fundamentals of Numerical Computation - Study Notes}
+}
+\lstset{
+  language=Python,
+  basicstyle=\small\ttfamily,
+  backgroundcolor=\color{codebackground},
+  keywordstyle=\color{accent}\bfseries,
+  showstringspaces=false,
+  columns=fullflexible,
+  keepspaces=true,
+  xleftmargin=0.5em,
+  xrightmargin=0.5em,
+  frame=single,
+  rulecolor=\color{codebackground}
+}
+
+\newcommand{\reading}[2]{\par\smallskip
+  {\small Textbook reading \enspace\href{#1}{#2}}\par\medskip}
+\DeclareMathOperator{\fl}{fl}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.45em}
+\setcounter{tocdepth}{2}
+
+\begin{document}
+
+{\color{accent}\large Numerical Analysis Study Notes\par}
+\vspace{0.45em}
+{\LARGE\bfseries Fundamentals of Numerical Computation\par}
+\smallskip
+{\large Preface and Chapter 1\par}
+\vspace{1em}
+An independent reading companion to Tobin A.\ Driscoll and Richard J.\
+Braun's \href{https://fncbook.com/python/}{Python edition}.
+
+\section*{Preface}
+\addcontentsline{toc}{section}{Preface}
+Numerical computation begins with a mathematical question and ends with an
+answer produced by finite arithmetic. This pilot studies what happens
+between those points. The examples use calculus to predict sensitivity and
+Python to check how arithmetic and algorithm choices affect the result.
+
+As you work through a section, write down the exact mathematical target,
+predict where accuracy could be lost, and run an experiment against a
+reference value. Record the input and the error measure alongside the
+result. The examples here use only the Python standard library. For the
+book's own examples, see its setup instructions.
+
+{\small
+  \href{https://fncbook.com/python/preface-original/}{Original preface}
+  \enspace\textbullet\enspace
+  \href{https://fncbook.com/python/preface/}{Julia edition preface}
+  \enspace\textbullet\enspace
+  \href{https://fncbook.com/python/usage/}{How to use the book}
+  \enspace\textbullet\enspace
+  \href{https://fncbook.com/python/setup/}{Python setup}\par
+}
+
+\tableofcontents
+
+\clearpage
+\section{Introduction}
+\reading{https://fncbook.com/python/overview/}{Chapter overview}
+
+Roundoff can change the inputs and the intermediate results of a computation.
+Conditioning describes how sensitive the exact answer is to changes in the
+inputs. Stability describes how the chosen algorithm handles the errors
+introduced during computation.
+
+\subsection{Floating-point numbers}
+\reading{https://fncbook.com/python/floating-point/}{Section 1.1}
+
+For IEEE binary64, a finite, nonzero \emph{normal} number has the form
+\[
+  \pm 2^e \left(1+\frac{k}{2^{52}}\right),
+  \qquad
+  -1022 \le e \le 1023,\qquad 0 \le k < 2^{52},
+\]
+where $e$ and $k$ are integers. Within $[2^e,2^{e+1})$ the spacing is
+$2^{e-52}$. In particular, the distance from $1$ to the next larger
+representable number is $\epsilon_{\rm mach}=2^{-52}$. Under rounding to
+nearest, the \emph{unit roundoff} is $u=\epsilon_{\rm mach}/2=2^{-53}$.
+For a real $x$ in the normal range with a finite rounded value,
+\[
+  \fl(x)=x(1+\delta),\qquad |\delta|\le u.
+\]
+Subnormal numbers have fixed absolute spacing and may exceed this relative
+error bound. Overflow can produce an infinity.
+
+For an approximation $\widehat{x}$ to a target $x$, absolute error is
+$|\widehat{x}-x|$. Relative error divides that quantity by $|x|$, so the
+ordinary relative error is defined only for $x\ne0$.
+
+\paragraph{Experiment.} A spacing of $4$ at $2^{54}$ explains why adding
+$1$ there rounds back to the original number. Reordering the same terms
+can change the result.
+
+\begin{lstlisting}
+from math import nextafter, inf
+
+x = float(2**54)
+print(nextafter(x, inf) - x)  # 4.0
+print((x + 1.0) - x)         # 0.0
+print((x - x) + 1.0)         # 1.0
+\end{lstlisting}
+
+\textbf{Check your understanding.} Predict which of $2^{54}+2$ and
+$2^{54}+3$ round up under ties-to-even. Verify by subtracting $2^{54}$ from
+the floating-point result.
+
+\clearpage
+\subsection{Problems and conditioning}
+\reading{https://fncbook.com/python/conditioning/}{Section 1.2}
+
+Suppose the desired output is $y=f(x)$ and the input is perturbed by $h$.
+Taylor expansion gives $f(x+h)-f(x)=f'(x)h+o(h)$ for a differentiable
+scalar $f$. If $x$ and $f(x)$ are nonzero, the ratio of relative output
+change to relative input change tends to
+\[
+   \kappa_f(x)=\left|\frac{x f'(x)}{f(x)}\right|.
+\]
+Thus $\kappa_f(x)$ estimates how much a small relative input error can
+grow in the exact problem. At a zero of $f$, use absolute output changes
+or choose an output scale appropriate to the problem.
+
+\paragraph{Example.} For $f(x)=1/(1-x)$, the relative condition number is
+$|x/(1-x)|$. At $x=0.999$ it equals $999$. An input change of $10^{-6}$
+raises the exact output from $1000$ to $1/(0.000999)\approx1001.001$.
+The input changes by about one part in a million, and the output changes
+by about one part in a thousand.
+
+\subsection{Algorithms}
+\reading{https://fncbook.com/python/algorithms/}{Section 1.3}
+
+The evaluation order determines the operations an algorithm performs. For
+example, write the polynomial $3x^3-2x^2+5x-7$ in nested form,
+\[
+   ((3x-2)x+5)x-7.
+\]
+For a degree-$n$ polynomial, Horner's rule starts with the leading
+coefficient, then multiplies by $x$ and adds the next coefficient at
+each step. It uses $n$ multiplications and $n$ additions when counted
+separately.
+
+\begin{lstlisting}
+def evaluate_polynomial(coefficients, x):
+    leading, *remaining = coefficients
+    value = leading
+    for coefficient in remaining:
+        value = value * x + coefficient
+    return value
+
+assert evaluate_polynomial((3, -2, 5, -7), 2.0) == 19.0
+\end{lstlisting}
+
+The coefficients here run from highest degree to constant term. To check
+the loop by hand, label the accumulator after each addition and expand the
+result.
+
+\clearpage
+\subsection{Stability}
+\reading{https://fncbook.com/python/stability/}{Section 1.4}
+
+For a computed result $\widehat{y}$, the absolute \emph{forward error} is
+$|\widehat{y}-f(x)|$. The absolute \emph{backward error} is the smallest
+$|\Delta x|$ for which $f(x+\Delta x)=\widehat{y}$, when such a smallest
+perturbation exists. A backward-stable algorithm produces the exact
+answer for data that differ from the given input by a small amount on
+the scale of the data. If the problem is well conditioned, a small
+backward error also implies a small forward error locally.
+
+\paragraph{Experiment.} For $x>0$ let $f(x)=\sqrt{x^2+1}-x$. Since
+$f'(x)=-f(x)/\sqrt{x^2+1}$, its relative condition number is at most $1$.
+As $x$ grows, the two terms in the subtraction get closer, and rounding
+in the square root can dominate their difference. The identity
+\[
+   f(x)=\frac{1}{\sqrt{x^2+1}+x}
+\]
+gives a second evaluation order.
+
+\begin{lstlisting}
+from math import hypot
+
+for x in (1.0, 1e4, 1e8):
+    root = hypot(x, 1.0)
+    direct = root - x
+    rationalized = 1.0 / (root + x)
+    print(f"{x:8.1e}  {direct:.12e}  {rationalized:.12e}")
+\end{lstlisting}
+
+\begin{center}
+  \small
+  \begin{tabular}{@{}rcc@{}}
+    \toprule
+    $x$ & Subtraction & Rationalized form \\
+    \midrule
+    $1$      & $4.142135623731\times10^{-1}$ & $4.142135623731\times10^{-1}$ \\
+    $10^4$   & $5.000000055588\times10^{-5}$ & $4.999999987500\times10^{-5}$ \\
+    $10^8$   & $0$ & $5.000000000000\times10^{-9}$ \\
+    \bottomrule
+  \end{tabular}
+\end{center}
+
+At $x=10^8$, the subtraction gives zero. Since $f$ is strictly positive
+for every finite real input, no finite input perturbation explains this
+computed value. Use \texttt{decimal} at higher precision to estimate
+the forward error of each method at the three test inputs.
+
+\subsection*{Next steps}
+\addcontentsline{toc}{subsection}{Next steps}
+In Chapter 2, apply the same distinction to linear systems. For a computed
+solution $\widehat{x}$ to $Ax=b$, first inspect the residual
+$r=b-A\widehat{x}$. For a nonsingular $A$, the exact solution error
+satisfies $x-\widehat{x}=A^{-1}r$. The action of $A^{-1}$ can turn a
+small residual into a much larger error.
+
+{\small
+  \href{https://fncbook.com/next/}{Chapter 1 further reading}
+  \enspace\textbullet\enspace
+  \href{https://fncbook.com/python/overview-1/}{Chapter 2 overview}\par
+}
+
+\end{document}
